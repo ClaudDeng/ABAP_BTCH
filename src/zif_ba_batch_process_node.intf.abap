@@ -1,6 +1,6 @@
 interface zif_ba_batch_process_node
   public .
-  types: ty_t_exe_params type table of rsparamsl_255.
+
   types: begin of ty_start_params,
            strtimmed  type btch0000-char1,
            sdlstrtdt  type tbtcjob-sdlstrtdt,  "Start Date of Background Job
@@ -26,13 +26,11 @@ interface zif_ba_batch_process_node
     end of enum enum_exe_status .
 
   data s_exe_rt_info type ty_exe_rt_info .
-  data t_exe_params type ty_t_exe_params .
   data s_start_params type ty_start_params.
 
   methods start
     importing
       is_start_params type ty_start_params
-      it_params_info  type ty_t_exe_params
     raising
       zcx_ba_batch_process .
 

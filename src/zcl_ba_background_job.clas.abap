@@ -11,8 +11,6 @@ class zcl_ba_background_job definition
       for zif_ba_batch_process_node~s_exe_rt_info .
     aliases s_start_params
       for zif_ba_batch_process_node~s_start_params .
-    aliases t_exe_params
-      for zif_ba_batch_process_node~t_exe_params .
     aliases get_exe_status
       for zif_ba_batch_process_node~get_exe_status .
     aliases start
@@ -23,8 +21,7 @@ class zcl_ba_background_job definition
       for zif_ba_batch_process_node~ty_exe_rt_info .
     aliases ty_start_params
       for zif_ba_batch_process_node~ty_start_params .
-    aliases ty_t_exe_params
-      for zif_ba_batch_process_node~ty_t_exe_params .
+
 
     types:
       begin of ty_cycle_params,
@@ -49,7 +46,7 @@ class zcl_ba_background_job definition
         job_status     type tbtcjob-status,
         job_message    type bapiret2-message,
       end  of ty_exe_job_info .
-
+    types: ty_t_exe_params type table of rsparamsl_255.
 
     data v_job_name type btcjob .
     data v_job_count type btcjobcnt .
@@ -57,11 +54,13 @@ class zcl_ba_background_job definition
     data s_cycle_params type ty_cycle_params .
     data s_exe_job_info type ty_exe_job_info .
     data t_job_log type table of tbtc5 .
+    data t_exe_params type ty_t_exe_params .
     data o_check_class type ref to zif_ba_batch_process_check .
-
+    data o_appl_log type ref to zcl_ba_appl_log.
     methods constructor
       importing
-        !iv_job_name type btcjob .
+        !iv_job_name type btcjob
+        io_appl_log  type ref to zcl_ba_appl_log.
     methods set_exe_prog_and_params
       importing
         !iv_prog_name      type btcjob
@@ -70,14 +69,12 @@ class zcl_ba_background_job definition
         !iv_uname          type tbtcjob-authcknam default sy-uname
         !is_pre_job_params type ty_pre_job_params optional
         !is_cycle_params   type ty_cycle_params optional
+        it_params_info     type ty_t_exe_params
         !io_check_class    type ref to zif_ba_batch_process_check optional
       raising
         zcx_ba_batch_process .
   protected section.
   private section.
-
-
-
     methods job_open
       raising
         zcx_ba_batch_process .
@@ -98,6 +95,9 @@ class zcl_ba_background_job definition
     methods job_log_read
       raising
         zcx_ba_batch_process .
+    methods print_execute_appl_log
+      raising
+        zcx_ba_batch_process .
 endclass.
 
 
@@ -107,6 +107,7 @@ class zcl_ba_background_job implementation.
 
   method constructor.
     v_job_name =  iv_job_name.
+    o_appl_log = io_appl_log.
   endmethod.
 
 
@@ -246,7 +247,7 @@ class zcl_ba_background_job implementation.
   method job_submit.
     submit s_exe_rt-prog_name
              using selection-set s_exe_job_info-variant
-             with selection-table zif_ba_batch_process_node~t_exe_params
+             with selection-table t_exe_params
              user  s_exe_job_info-exe_uname
              via job v_job_name number v_job_count
              and return.
@@ -304,12 +305,14 @@ class zcl_ba_background_job implementation.
     s_pre_job_params = is_pre_job_params.
     s_cycle_params = is_cycle_params.
     o_check_class = io_check_class.
-
+    t_exe_params = it_params_info.
   endmethod.
 
 
   method zif_ba_batch_process_node~get_exe_status.
 
+
+    me->print_execute_appl_log( ).
 
     s_exe_job_info-job_status = me->job_status_read( ).
     me->job_log_read( ).
@@ -357,7 +360,8 @@ class zcl_ba_background_job implementation.
     s_exe_rt_info-bdate = sy-datum.
     s_exe_rt_info-btime = sy-uzeit.
 
-    t_exe_params = it_params_info.
+    me->print_execute_appl_log( ).
+
     me->job_open( ).
     me->job_submit( ).
     me->job_close(
@@ -377,4 +381,21 @@ class zcl_ba_background_job implementation.
       me->get_exe_status(    ).
     endif.
   endmethod.
+
+
+  method print_execute_appl_log.
+
+    data: lt_cstack_tab type sys_callst.
+    field-symbols: <fs> type any.
+    call function 'SYSTEM_CALLSTACK'
+      importing
+        et_callstack = lt_cstack_tab. " internal table
+    if lines( lt_cstack_tab ) ge 2.
+      message s000(00) with |执行作业( { v_job_name  })的{  lt_cstack_tab[ 2 ]-eventname  }方法。|.
+      me->o_appl_log->add_log(     ).
+*      catch zcx_ba_batch_process. " ZCX_BA_BACKGROUND_JOB
+    endif.
+* l_cstack_tab 里就是abap的调用堆栈
+  endmethod.
+
 endclass.
